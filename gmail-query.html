@@ -1,0 +1,349 @@
+<!doctype html>
+<html>
+<head>
+  <title>Gmail API demo</title>
+  <meta charset="UTF-8">
+
+  <link rel="stylesheet" href="//maxcdn.bootstrapcdn.com/bootstrap/3.3.5/css/bootstrap.min.css">
+  <link rel="stylesheet" href="//maxcdn.bootstrapcdn.com/bootstrap/3.3.5/css/bootstrap-theme.min.css">
+  <style>
+    iframe {
+      width: 100%;
+      border: 0;
+      min-height: 80%;
+      height: 600px;
+      display: flex;
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <h1>Gmail API demo</h1>
+
+  <button id="authorize-button" class="btn btn-primary hidden">Authorize</button>
+
+  <table class="table table-striped table-inbox hidden">
+    <thead>
+    <tr>
+      <th>Thread Id</th>
+      <th>From</th>
+      <th>To</th>
+      <th>Subject</th>
+      <th>Date/Time</th>
+      <th>Thread Topic</th>
+    </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+</div>
+
+<script src="//code.jquery.com/jquery-1.11.3.min.js"></script>
+<script src="//maxcdn.bootstrapcdn.com/bootstrap/3.3.5/js/bootstrap.min.js"></script>
+
+<script type="text/javascript">
+  var apiKey = '';
+  var clientId = ''; // ...apps.googleusercontent.com
+  var scopes = 'https://www.googleapis.com/auth/gmail.readonly';
+
+  var dateFormat = function () {
+    var	token = /d{1,4}|m{1,4}|yy(?:yy)?|([HhMsTt])\1?|[LloSZ]|"[^"]*"|'[^']*'/g,
+      timezone = /\b(?:[PMCEA][SDP]T|(?:Pacific|Mountain|Central|Eastern|Atlantic) (?:Standard|Daylight|Prevailing) Time|(?:GMT|UTC)(?:[-+]\d{4})?)\b/g,
+      timezoneClip = /[^-+\dA-Z]/g,
+      pad = function (val, len) {
+        val = String(val);
+        len = len || 2;
+        while (val.length < len) val = "0" + val;
+        return val;
+      };
+
+    // Regexes and supporting functions are cached through closure
+    return function (date, mask, utc) {
+      var dF = dateFormat;
+
+      // You can't provide utc if you skip other args (use the "UTC:" mask prefix)
+      if (arguments.length == 1 && Object.prototype.toString.call(date) == "[object String]" && !/\d/.test(date)) {
+        mask = date;
+        date = undefined;
+      }
+
+      // Passing date through Date applies Date.parse, if necessary
+      date = date ? new Date(date) : new Date;
+      if (isNaN(date)) throw SyntaxError("invalid date");
+
+      mask = String(dF.masks[mask] || mask || dF.masks["default"]);
+
+      // Allow setting the utc argument via the mask
+      if (mask.slice(0, 4) == "UTC:") {
+        mask = mask.slice(4);
+        utc = true;
+      }
+
+      var	_ = utc ? "getUTC" : "get",
+        d = date[_ + "Date"](),
+        D = date[_ + "Day"](),
+        m = date[_ + "Month"](),
+        y = date[_ + "FullYear"](),
+        H = date[_ + "Hours"](),
+        M = date[_ + "Minutes"](),
+        s = date[_ + "Seconds"](),
+        L = date[_ + "Milliseconds"](),
+        o = utc ? 0 : date.getTimezoneOffset(),
+        flags = {
+          d:    d,
+          dd:   pad(d),
+          ddd:  dF.i18n.dayNames[D],
+          dddd: dF.i18n.dayNames[D + 7],
+          m:    m + 1,
+          mm:   pad(m + 1),
+          mmm:  dF.i18n.monthNames[m],
+          mmmm: dF.i18n.monthNames[m + 12],
+          yy:   String(y).slice(2),
+          yyyy: y,
+          h:    H % 12 || 12,
+          hh:   pad(H % 12 || 12),
+          H:    H,
+          HH:   pad(H),
+          M:    M,
+          MM:   pad(M),
+          s:    s,
+          ss:   pad(s),
+          l:    pad(L, 3),
+          L:    pad(L > 99 ? Math.round(L / 10) : L),
+          t:    H < 12 ? "a"  : "p",
+          tt:   H < 12 ? "am" : "pm",
+          T:    H < 12 ? "A"  : "P",
+          TT:   H < 12 ? "AM" : "PM",
+          Z:    utc ? "UTC" : (String(date).match(timezone) || [""]).pop().replace(timezoneClip, ""),
+          o:    (o > 0 ? "-" : "+") + pad(Math.floor(Math.abs(o) / 60) * 100 + Math.abs(o) % 60, 4),
+          S:    ["th", "st", "nd", "rd"][d % 10 > 3 ? 0 : (d % 100 - d % 10 != 10) * d % 10]
+        };
+
+      return mask.replace(token, function ($0) {
+        return $0 in flags ? flags[$0] : $0.slice(1, $0.length - 1);
+      });
+    };
+  }();
+
+  // Some common format strings
+  dateFormat.masks = {
+    "default":      "ddd mmm dd yyyy HH:MM:ss",
+    shortDate:      "m/d/yy",
+    mediumDate:     "mmm d, yyyy",
+    longDate:       "mmmm d, yyyy",
+    fullDate:       "dddd, mmmm d, yyyy",
+    shortTime:      "h:MM TT",
+    mediumTime:     "h:MM:ss TT",
+    longTime:       "h:MM:ss TT Z",
+    isoDate:        "yyyy-mm-dd",
+    isoTime:        "HH:MM:ss",
+    isoDateTime:    "yyyy-mm-dd'T'HH:MM:ss",
+    isoUtcDateTime: "UTC:yyyy-mm-dd'T'HH:MM:ss'Z'"
+  };
+
+  // Internationalization strings
+  dateFormat.i18n = {
+    dayNames: [
+      "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat",
+      "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"
+    ],
+    monthNames: [
+      "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+      "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"
+    ]
+  };
+
+  // For convenience...
+  Date.prototype.format = function (mask, utc) {
+    return dateFormat(this, mask, utc);
+  };
+
+  function handleClientLoad() {
+    console.log('handleClientLoad');
+    gapi.client.setApiKey(apiKey);
+    window.setTimeout(checkAuth, 1);
+  }
+
+  function checkAuth() {
+    console.log('checkAuth');
+
+    // 2. Initialize the JavaScript client library.
+    gapi.client.init({
+      'apiKey': apiKey,
+      // Your API key will be automatically added to the Discovery Document URLs.
+      'discoveryDocs': ['https://people.googleapis.com/$discovery/rest'],
+      // clientId and scope are optional if auth is not required.
+      'clientId': clientId,
+      'scope': scopes,
+    }).then(function() {
+      console.log("Client Init");
+    }).then(function(response) {
+      console.log("After Client Init");
+      console.log(response);
+      handleAuthResult(response);
+    }, function(reason) {
+      console.log("Reason");
+      console.log(reason);
+    });
+  }
+
+  function handleAuthClick() {
+    console.log('handleAuthClick');
+    gapi.auth.authorize({
+      client_id: clientId,
+      scope: scopes,
+      immediate: false
+    }, handleAuthResult);
+    return false;
+  }
+
+  function handleAuthResult(authResult) {
+    console.log('handleAuthResult: ' + authResult);
+    if(authResult && !authResult.error) {
+      loadGmailApi();
+      $('#authorize-button').remove();
+      $('.table-inbox').removeClass("hidden");
+    } else {
+      $('#authorize-button').removeClass("hidden");
+      $('#authorize-button').on('click', function(){
+        handleAuthClick();
+      });
+    }
+  }
+
+  function loadGmailApi() {
+    console.log('loadGmailApi');
+    gapi.client.load('gmail', 'v1', displayInbox);
+  }
+
+  function listMessages(userId, query, callback) {
+    var getPageOfMessages = function(request, result) {
+      request.execute(function(resp) {
+        result = result.concat(resp.messages);
+        var nextPageToken = resp.nextPageToken;
+        if (nextPageToken) {
+          request = gapi.client.gmail.users.messages.list({
+            'userId': userId,
+            'maxResults': 100,
+            'pageToken': nextPageToken,
+            'q': query
+          });
+          getPageOfMessages(request, result);
+        } else {
+          callback(result);
+        }
+      });
+    };
+    var initialRequest = gapi.client.gmail.users.messages.list({
+      'userId': userId,
+      'maxResults': 100,
+      'q': query
+    });
+    getPageOfMessages(initialRequest, []);
+  }
+
+  function displayInbox() {
+    console.log('displayInbox');
+
+    var userId = 'me';
+    var filter = '(from:@customer.com AND to:@domain.com) OR (from:@domain.com AND to:@customer.com)';
+
+    listMessages(userId, filter, function(messages) {
+      console.log('Loaded ' + messages.length + ' messages');
+      $.each(messages, function (index, message) {
+        var messageRequest = gapi.client.gmail.users.messages.get({
+          'userId': 'me',
+          'id': message.id
+        });
+        messageRequest.execute(appendMessageRow);
+      });
+    });
+  }
+
+  var count=1;
+
+  function appendMessageRow(message) {
+    console.log('"' + count++ + '";"' + message.threadId + '";"' + new Date(getHeader(message.payload.headers, 'Date')).format('dd/mm/yyyy HH:MM:ss') + '";"' + getHeader(message.payload.headers, 'From') + '";"' + getHeader(message.payload.headers, 'To') + '";"' + getHeader(message.payload.headers, 'Thread-Topic') + '";"' + getHeader(message.payload.headers, 'Subject') + '"');
+
+    $('.table-inbox tbody').append(
+      '<tr>\
+        <td>'+message.threadId+'</td>\
+        <td>'+getHeader(message.payload.headers, 'X-Original-Sender')+'</td>\
+        <td>'+getHeader(message.payload.headers, 'To')+'</td>\
+            <td>\
+              <a href="#message-modal-' + message.id +
+      '" data-toggle="modal" id="message-link-' + message.id+'">' +
+      getHeader(message.payload.headers, 'Subject') +
+      '</a>\
+    </td>\
+    <td>'+getHeader(message.payload.headers, 'Date')+'</td>\
+    <td>'+getHeader(message.payload.headers, 'Thread-Topic')+'</td>\
+          </tr>'
+    );
+
+    $('body').append(
+      '<div class="modal fade" id="message-modal-' + message.id +
+      '" tabindex="-1" role="dialog" aria-labelledby="myModalLabel">\
+    <div class="modal-dialog modal-lg">\
+      <div class="modal-content">\
+        <div class="modal-header">\
+          <button type="button"\
+                  class="close"\
+                  data-dismiss="modal"\
+                  aria-label="Close">\
+            <span aria-hidden="true">&times;</span></button>\
+          <h4 class="modal-title" id="myModalLabel">' +
+      getHeader(message.payload.headers, 'Subject') +
+      '</h4>\
+    </div>\
+    <div class="modal-body">\
+      <iframe id="message-iframe-'+message.id+'" srcdoc="<p>Loading...</p>">\
+                  </iframe>\
+                </div>\
+              </div>\
+            </div>\
+          </div>'
+    );
+
+    $('#message-link-'+message.id).on('click', function() {
+      var ifrm = $('#message-iframe-'+message.id)[0].contentWindow.document;
+      $('body', ifrm).html(getBody(message.payload));
+    });
+  }
+
+  function getHeader(headers, index) {
+    var header = '';
+    $.each(headers, function() {
+      if(this.name === index) {
+        header = this.value;
+      }
+    });
+    return header;
+  }
+
+  function getBody(message) {
+    var encodedBody = '';
+    if(typeof message.parts === 'undefined') {
+      encodedBody = message.body.data;
+    } else {
+      encodedBody = getHTMLPart(message.parts);
+    }
+    encodedBody = encodedBody.replace(/-/g, '+').replace(/_/g, '/').replace(/\s/g, '');
+    return decodeURIComponent(escape(window.atob(encodedBody)));
+  }
+
+  function getHTMLPart(arr) {
+    for(var x = 0; x <= arr.length; x++) {
+      if(typeof arr[x].parts === 'undefined') {
+        if(arr[x].mimeType === 'text/html') {
+          return arr[x].body.data;
+        }
+      } else {
+        return getHTMLPart(arr[x].parts);
+      }
+    }
+    return '';
+  }
+</script>
+<script src="https://apis.google.com/js/client.js?onload=handleClientLoad"></script>
+</body>
+</html>
