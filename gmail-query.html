@@ -41,6 +41,7 @@
 <script src="//maxcdn.bootstrapcdn.com/bootstrap/3.3.5/js/bootstrap.min.js"></script>
 
 <script type="text/javascript">
+
   var apiKey = '';
   var clientId = ''; // ...apps.googleusercontent.com
   var scopes = 'https://www.googleapis.com/auth/gmail.readonly';
@@ -245,7 +246,7 @@
     console.log('displayInbox');
 
     var userId = 'me';
-    var filter = '(from:@customer.com AND to:@domain.com) OR (from:@domain.com AND to:@customer.com)';
+    var filter = '(@kinguin.net)';
 
     listMessages(userId, filter, function(messages) {
       console.log('Loaded ' + messages.length + ' messages');
@@ -267,7 +268,7 @@
     $('.table-inbox tbody').append(
       '<tr>\
         <td>'+message.threadId+'</td>\
-        <td>'+getHeader(message.payload.headers, 'X-Original-Sender')+'</td>\
+        <td>'+getHeader(message.payload.headers, 'From')+'</td>\
         <td>'+getHeader(message.payload.headers, 'To')+'</td>\
             <td>\
               <a href="#message-modal-' + message.id +
@@ -275,7 +276,7 @@
       getHeader(message.payload.headers, 'Subject') +
       '</a>\
     </td>\
-    <td>'+getHeader(message.payload.headers, 'Date')+'</td>\
+    <td>'+new Date(getHeader(message.payload.headers, 'Date')).format('dd/mm/yyyy HH:MM:ss')+'</td>\
     <td>'+getHeader(message.payload.headers, 'Thread-Topic')+'</td>\
           </tr>'
     );
